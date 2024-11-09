@@ -59,7 +59,8 @@ def configurar_recuperador(vectorstore, k=3):
 
 # 6. Realizar una búsqueda
 def buscar_contenido(retriever, prompt):
-    resultados = retriever.get_relevant_documents(prompt)
+    # Usar el nuevo método invoke en lugar de get_relevant_documents
+    resultados = retriever.invoke(prompt)
     # Extraer el contenido de los resultados
     contenido_resultados = "\n\n".join([resultado.page_content for resultado in resultados])
     return contenido_resultados
@@ -83,18 +84,57 @@ def generar_respuesta_openai(prompt, contexto):
     )
     return respuesta.choices[0].message.content.strip()
 
+# ... (todo el código anterior se mantiene igual hasta el main)
 
 if __name__ == "__main__":
     while True:
-        print("\n=== MENÚ PRINCIPAL  ===")
-        print("1. Ingresar path del archivo PDF")
-        print("2. Salir")
+        print("\n=== MENÚ PRINCIPAL ===")
+        print("1. Hacer una pregunta")
+        print("2. Cargar nuevo PDF a la base vectorial") # Opcional, por si quieren agregar más documentos
+        print("3. Salir")
         
-        opcion = input("\nSeleccione una opción (1-2): ")
+        opcion = input("\nSeleccione una opción (1-3): ")
         
         if opcion == "1":
-            pdf_path = input("\nIngrese el path del archivo PDF: ")
+            try:
+                # Cargar el modelo de embeddings
+                print("\nCargando el modelo de embeddings...")
+                embedding_function = cargar_modelo_embeddings()
+                
+                # Cargar la base de datos vectorial existente
+                persist_directory = os.path.join(os.getcwd(), "chroma_db_local")
+                if not os.path.exists(persist_directory):
+                    print("\nError: No existe una base de datos vectorial. Debe cargar al menos un PDF primero.")
+                    continue
+                
+                # Cargar Chroma desde el directorio persistente
+                vectorstore = Chroma(
+                    persist_directory=persist_directory,
+                    embedding_function=embedding_function
+                )
+                
+                # Configurar el recuperador
+                retriever = configurar_recuperador(vectorstore)
+                
+                # Obtener la pregunta del usuario
+                prompt = input("\nIngrese su pregunta: ")
+                
+                # Realizar la búsqueda
+                print(f"\nBuscando información para el prompt: '{prompt}'")
+                contexto = buscar_contenido(retriever, prompt)
+
+                # Generar respuesta con OpenAI
+                print("Generando respuesta con OpenAI...")
+                respuesta_final = generar_respuesta_openai(prompt, contexto)
+                print(f"\nRespuesta generada:\n{respuesta_final}")
+                
+            except Exception as e:
+                print(f"\nError: {str(e)}")
+                
+            input("\nPresione Enter para continuar...")
             
+        elif opcion == "2":
+            pdf_path = input("\nIngrese el path del archivo PDF: ")
             try:
                 # Paso 1: Cargar el modelo de embeddings
                 print("\nCargando el modelo de embeddings...")
@@ -112,19 +152,7 @@ if __name__ == "__main__":
                 print("Creando la base de datos vectorial...")
                 vectorstore = crear_base_datos_vectorial(docs, embedding_function)
                 
-                # Paso 5: Configurar el recuperador
-                print("Configurando el recuperador...")
-                retriever = configurar_recuperador(vectorstore)
-
-                # Paso 6: Realizar una búsqueda
-                prompt = "¿Dónde queda Chancletus?"
-                print(f"\nBuscando información para el prompt: '{prompt}'")
-                contexto = buscar_contenido(retriever, prompt)
-
-                # Paso 7: Generar respuesta con OpenAI
-                print("Generando respuesta con OpenAI...")
-                respuesta_final = generar_respuesta_openai(prompt, contexto)
-                print(f"\nRespuesta generada:\n{respuesta_final}")
+                print("\nPDF procesado y agregado a la base de datos vectorial correctamente.")
                 
             except FileNotFoundError:
                 print(f"\nError: No se encontró el archivo '{pdf_path}'")
@@ -133,7 +161,7 @@ if __name__ == "__main__":
                 
             input("\nPresione Enter para continuar...")
             
-        elif opcion == "2":
+        elif opcion == "3":
             print("\n¡Hasta luego!")
             break
             
